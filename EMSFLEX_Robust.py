@@ -30,18 +30,18 @@ spot_price = [0.221990000000000, 0.228250000000000, 0.218800000000000,
               0.205930000000000, 0.182300000000000, 0.159320000000000]
 
 # Flex price
-# flex_price = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-#               sum(spot_price)/24, sum(spot_price)/24, sum(spot_price)/24,
-#               sum(spot_price)/24, sum(spot_price)/24, sum(spot_price)/24,
-#               sum(spot_price)/24, sum(spot_price)/24, sum(spot_price)/24,
-#               0, 0, 0, 0]
-
-
 flex_price = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-              max(spot_price), max(spot_price), max(spot_price),
-              max(spot_price), max(spot_price), max(spot_price),
-              max(spot_price), max(spot_price), max(spot_price),
-              0, 0, 0, 0]
+               sum(spot_price)/24, sum(spot_price)/24, sum(spot_price)/24,
+               sum(spot_price)/24, sum(spot_price)/24, sum(spot_price)/24,
+               sum(spot_price)/24, sum(spot_price)/24, sum(spot_price)/24,
+               0, 0, 0, 0]
+
+
+#flex_price = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+#              max(spot_price), max(spot_price), max(spot_price),
+#              max(spot_price), max(spot_price), max(spot_price),
+#              max(spot_price), max(spot_price), max(spot_price),
+#              0, 0, 0, 0]
 
 # flex_price = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 #               spot_price[11], spot_price[12], spot_price[13],
@@ -239,3 +239,5 @@ plt.xlabel('Hour of the Day')
 plt.ylabel('Power (kW)')
 plt.legend()
 plt.show()
+
+print(pyo.value(model.Flex[:]))
