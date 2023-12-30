@@ -1,5 +1,6 @@
 import pyomo.environ as pyo
 import pandas as pd
+from statistics import NormalDist
 import matplotlib.pyplot as plt
 
 ###################################Heat price data###################################
@@ -109,6 +110,9 @@ model.heatpeak = pyo.Var(within=pyo.NonNegativeReals, initialize=0)
 model.elecpeak = pyo.Var(within=pyo.NonNegativeReals, initialize=0)
 model.Flex = pyo.Var(model.T, within=pyo.NonNegativeReals, initialize=0)
 
+
+
+
 pGridim0 = [12.126069, 12.932467, 11.517310, 10.718733, 11.633000,
             10.323652, 11.488815, 13.527714, 14.241800, 12.429379,
             14.455000, 10.898467, 12.376207, 9.817895, 13.396200,
@@ -134,8 +138,6 @@ model.obj = pyo.Objective(rule=rule_1, sense=pyo.minimize)
 # Constraints
 def rule_C1(model, t):
     return model.hHP[t] + model.hDH[t] == HSBheatLoad[t]
-
-
 model.C1 = pyo.Constraint(model.T, rule=rule_C1)
 
 
@@ -205,12 +207,15 @@ model.C12 = pyo.Constraint(model.T, rule=rule_C12)
 
 def rule_C13(model, t):
     if flex_price[t] != 0:
-        return model.Flex[t] <= (pGridim0[t] - model.pGridim[t])  # 0.6*pGridmax
+        return model.Flex[t] <= (pGridim0[t] - model.pGridim[t] -
+                                 NormalDist().inv_cdf(0.99)*((0.05*HSBelecLoad[t])**2 +
+                                                             (0.2*HSBpvgen[t]+0.02*max(HSBpvgen[:]))**2)**0.5)
     else:
         return model.Flex[t] <= 0
 model.C13 = pyo.Constraint(model.T, rule=rule_C13)
 
-opt = pyo.SolverFactory('gurobi', solver_io="python", executable=r"C:\gurobi1002\win64")
+
+opt = pyo.SolverFactory('gurobi', solver_io="python", executable=r"C:\gurobi1100\win64")
 reults = opt.solve(model)
 
 scheduling = pd.DataFrame([pyo.value(model.pGridim[:]), pyo.value(model.pGridex[:]),
