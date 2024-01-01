@@ -1,6 +1,5 @@
 import pyomo.environ as pyo
 import pandas as pd
-from statistics import NormalDist
 
 ###################################Heat price data###################################
 HPrice_energy = [0.521, 0.521, 0.521, 0.359, 0.164, 0.100, 0.100, 0.100, 0.145, 0.359, 0.414, 0.521]  # SEK/kWh
@@ -34,10 +33,10 @@ eff = 0.923  # BE's charging/discharging efficiency
 # Technical data of electricity and heat grids
 pGridmax = 50  # Grid's maximum heat limit
 hDHmax = 30  # DH's maximum heat limit
+#############################Optimization model###################################
 
+def EMSFLEX_providefunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, pGridim0, Flex):
 
-def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGridim0):
-    #############################Optimization model###################################
     model = pyo.ConcreteModel()
     # Sets
     model.T = pyo.Set(initialize=range(0, 24))
@@ -58,14 +57,7 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
     model.uGridex = pyo.Var(model.T, within=pyo.Binary, initialize=0)
     model.heatpeak = pyo.Var(within=pyo.NonNegativeReals, initialize=0)
     model.elecpeak = pyo.Var(within=pyo.NonNegativeReals, initialize=0)
-    model.Flex = pyo.Var(model.T, within=pyo.NonNegativeReals, initialize=0)
-
-
-#    pGridim0 = [12.126069, 12.932467, 11.517310, 10.718733, 11.633000,
-#                10.323652, 11.488815, 13.527714, 14.241800, 12.429379,
-#                14.455000, 10.898467, 12.376207, 9.817895, 13.396200,
-#                18.571627, 18.313310, 18.571627, 14.872600, 18.571627,
-#                16.558133, 14.153379, 11.355655, 13.098800]
+    model.pShed = pyo.Var(model.T, within=pyo.NonNegativeReals, initialize=0)
 
 
     # Objective
@@ -76,10 +68,8 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
                 + model.elecpeak * Effect_fee
                 + sum(HPrice_energy[int(12 - 1)] * model.hDH[t] for t in model.T)
                 + (HPrice_effect['v'][0] * model.heatpeak) / (365 * 24)
-                - sum((1 * flex_price[t] + Transmission_fee + Tax_fee) * model.Flex[t] for t in model.T)
+                + sum(1000 * model.pShed[t] for t in model.T)
                 )
-
-
     model.obj = pyo.Objective(rule=rule_1, sense=pyo.minimize)
 
 
@@ -92,7 +82,7 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
     def rule_C2(model, t):
         return model.pGridim[t] + model.pDC[t] == \
             model.pGridex[t] + model.pHP[t] + model.pCH[t] + \
-            (HSBelecLoad[t] - HSBpvgen[t])
+            (HSBelecLoad[t] - HSBpvgen[t]) - model.pShed[t]
     model.C2 = pyo.Constraint(model.T, rule=rule_C2)
 
 
@@ -154,12 +144,7 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
 
 
     def rule_C13(model, t):
-        if flex_price[t] != 0:
-            return model.Flex[t] <= (pGridim0[t] - model.pGridim[t] -
-                                     NormalDist().inv_cdf(0.95)*((0.05*HSBelecLoad[t])**2 +
-                                                                 (0.2*HSBpvgen[t]+0.02*max(HSBpvgen[:]))**2)**0.5)
-        else:
-            return model.Flex[t] <= 0
+        return model.pGridim[t] - model.pShed[t] <= (pGridim0[t] - Flex[t])
     model.C13 = pyo.Constraint(model.T, rule=rule_C13)
 
 
@@ -168,11 +153,11 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
 
     scheduling = pd.DataFrame([pyo.value(model.pGridim[:]), pyo.value(model.pGridex[:]),
                                pyo.value(model.pCH[:]), pyo.value(model.pDC[:]),
-                               pyo.value(model.pHP[:]), HSBelecLoad[:], HSBpvgen[:],
-                               pyo.value(model.Flex[:])
+                               pyo.value(model.pHP[:]), HSBelecLoad[:], HSBpvgen[:]
+
                                ], index=['Pgrid_imp', 'Pgrid_exp',
                                          'PBES_CH', 'PBES_DC',
-                                         'PHP', 'Load', 'PV', 'Flexibility'])
+                                         'PHP', 'Load', 'PV'])
     scheduling.loc['Pgrid_imp', :] = scheduling.loc['Pgrid_imp', :].apply(lambda x: -x)
     scheduling.loc['PV', :] = scheduling.loc['PV', :].apply(lambda x: -x)
     scheduling.loc['PBES_DC', :] = scheduling.loc['PBES_DC', :].apply(lambda x: -x)
@@ -188,5 +173,4 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
     #plt.legend()
     #plt.show()
 
-    print(pyo.value(model.Flex[:]))
-    return scheduling
+    print(pyo.value(model.pShed[:]))
