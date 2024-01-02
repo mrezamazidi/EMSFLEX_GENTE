@@ -150,20 +150,5 @@ def EMSEnergyfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price):
                                ], index=['Pgrid_imp', 'Pgrid_exp',
                                          'PBES_CH', 'PBES_DC',
                                          'PHP', 'Load', 'PV'])
-    scheduling.loc['Pgrid_imp', :] = scheduling.loc['Pgrid_imp', :].apply(lambda x: -x)
-    scheduling.loc['PV', :] = scheduling.loc['PV', :].apply(lambda x: -x)
-    scheduling.loc['PBES_DC', :] = scheduling.loc['PBES_DC', :].apply(lambda x: -x)
-    # Separate positive and negative values for Pgrid_imp and PBES_DC
-    # Transpose the DataFrame to have components as columns and hours as rows
-    scheduling_transposed = scheduling.T
 
-    # Create a stacked bar chart
-    scheduling_transposed.plot(kind='bar', stacked=True)
-
-    #plt.xlabel('Hour of the Day')
-    #plt.ylabel('Power (kW)')
-    #plt.legend()
-    #plt.show()
-
-    print(pyo.value(model.pGridim[:]))
     return scheduling

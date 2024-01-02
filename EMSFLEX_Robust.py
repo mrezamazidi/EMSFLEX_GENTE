@@ -36,7 +36,7 @@ pGridmax = 50  # Grid's maximum heat limit
 hDHmax = 30  # DH's maximum heat limit
 
 
-def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGridim0):
+def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGridim0, Flex_req_time, Flex_req_period, CC_flag, Alpha_value):
     #############################Optimization model###################################
     model = pyo.ConcreteModel()
     # Sets
@@ -60,14 +60,6 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
     model.elecpeak = pyo.Var(within=pyo.NonNegativeReals, initialize=0)
     model.Flex = pyo.Var(model.T, within=pyo.NonNegativeReals, initialize=0)
 
-
-#    pGridim0 = [12.126069, 12.932467, 11.517310, 10.718733, 11.633000,
-#                10.323652, 11.488815, 13.527714, 14.241800, 12.429379,
-#                14.455000, 10.898467, 12.376207, 9.817895, 13.396200,
-#                18.571627, 18.313310, 18.571627, 14.872600, 18.571627,
-#                16.558133, 14.153379, 11.355655, 13.098800]
-
-
     # Objective
     def rule_1(model):
         return (Subscription_fee
@@ -78,8 +70,6 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
                 + (HPrice_effect['v'][0] * model.heatpeak) / (365 * 24)
                 - sum((1 * flex_price[t] + Transmission_fee + Tax_fee) * model.Flex[t] for t in model.T)
                 )
-
-
     model.obj = pyo.Objective(rule=rule_1, sense=pyo.minimize)
 
 
@@ -154,9 +144,9 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
 
 
     def rule_C13(model, t):
-        if flex_price[t] != 0:
+        if Flex_req_period[0] - Flex_req_time <= t <= Flex_req_period[1] - Flex_req_time:
             return model.Flex[t] <= (pGridim0[t] - model.pGridim[t] -
-                                     NormalDist().inv_cdf(0.95)*((0.05*HSBelecLoad[t])**2 +
+                                     CC_flag*NormalDist().inv_cdf(Alpha_value)*((0.05*HSBelecLoad[t])**2 +
                                                                  (0.2*HSBpvgen[t]+0.02*max(HSBpvgen[:]))**2)**0.5)
         else:
             return model.Flex[t] <= 0
@@ -173,20 +163,5 @@ def EMSFLEXfunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, flex_price, pGri
                                ], index=['Pgrid_imp', 'Pgrid_exp',
                                          'PBES_CH', 'PBES_DC',
                                          'PHP', 'Load', 'PV', 'Flexibility'])
-    scheduling.loc['Pgrid_imp', :] = scheduling.loc['Pgrid_imp', :].apply(lambda x: -x)
-    scheduling.loc['PV', :] = scheduling.loc['PV', :].apply(lambda x: -x)
-    scheduling.loc['PBES_DC', :] = scheduling.loc['PBES_DC', :].apply(lambda x: -x)
-    # Separate positive and negative values for Pgrid_imp and PBES_DC
-    # Transpose the DataFrame to have components as columns and hours as rows
-    scheduling_transposed = scheduling.T
 
-    # Create a stacked bar chart
-    scheduling_transposed.plot(kind='bar', stacked=True)
-
-    #plt.xlabel('Hour of the Day')
-    #plt.ylabel('Power (kW)')
-    #plt.legend()
-    #plt.show()
-
-    print(pyo.value(model.Flex[:]))
     return scheduling

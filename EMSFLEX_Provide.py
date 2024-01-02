@@ -1,5 +1,6 @@
 import pyomo.environ as pyo
 import pandas as pd
+from numpy import random
 
 ###################################Heat price data###################################
 HPrice_energy = [0.521, 0.521, 0.521, 0.359, 0.164, 0.100, 0.100, 0.100, 0.145, 0.359, 0.414, 0.521]  # SEK/kWh
@@ -35,7 +36,13 @@ pGridmax = 50  # Grid's maximum heat limit
 hDHmax = 30  # DH's maximum heat limit
 #############################Optimization model###################################
 
-def EMSFLEX_providefunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, pGridim0, Flex):
+def EMSFLEX_providefunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, pGridim0, Flex, RL_flag):
+
+    #Randomness of load
+    if RL_flag:
+        for i in range(24):
+            HSBelecLoad[i] = random.normal(loc=HSBelecLoad[i], scale=0.05 * HSBelecLoad[i])
+            HSBpvgen[i] = random.normal(loc=HSBpvgen[i], scale=0.2*HSBpvgen[i]+0.02*max(HSBpvgen[:]))
 
     model = pyo.ConcreteModel()
     # Sets
@@ -68,7 +75,7 @@ def EMSFLEX_providefunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, pGridim0
                 + model.elecpeak * Effect_fee
                 + sum(HPrice_energy[int(12 - 1)] * model.hDH[t] for t in model.T)
                 + (HPrice_effect['v'][0] * model.heatpeak) / (365 * 24)
-                + sum(1000 * model.pShed[t] for t in model.T)
+                + sum(10000 * model.pShed[t] for t in model.T)
                 )
     model.obj = pyo.Objective(rule=rule_1, sense=pyo.minimize)
 
@@ -153,24 +160,12 @@ def EMSFLEX_providefunc(HSBelecLoad, HSBheatLoad, HSBpvgen, spot_price, pGridim0
 
     scheduling = pd.DataFrame([pyo.value(model.pGridim[:]), pyo.value(model.pGridex[:]),
                                pyo.value(model.pCH[:]), pyo.value(model.pDC[:]),
-                               pyo.value(model.pHP[:]), HSBelecLoad[:], HSBpvgen[:]
-
+                               pyo.value(model.pHP[:]), HSBelecLoad[:], HSBpvgen[:],
+                               pyo.value(model.pShed[:])
                                ], index=['Pgrid_imp', 'Pgrid_exp',
                                          'PBES_CH', 'PBES_DC',
-                                         'PHP', 'Load', 'PV'])
-    scheduling.loc['Pgrid_imp', :] = scheduling.loc['Pgrid_imp', :].apply(lambda x: -x)
-    scheduling.loc['PV', :] = scheduling.loc['PV', :].apply(lambda x: -x)
-    scheduling.loc['PBES_DC', :] = scheduling.loc['PBES_DC', :].apply(lambda x: -x)
+                                         'PHP', 'Load', 'PV', 'pShed'])
     # Separate positive and negative values for Pgrid_imp and PBES_DC
     # Transpose the DataFrame to have components as columns and hours as rows
-    scheduling_transposed = scheduling.T
 
-    # Create a stacked bar chart
-    scheduling_transposed.plot(kind='bar', stacked=True)
-
-    #plt.xlabel('Hour of the Day')
-    #plt.ylabel('Power (kW)')
-    #plt.legend()
-    #plt.show()
-
-    print(pyo.value(model.pShed[:]))
+    return scheduling
